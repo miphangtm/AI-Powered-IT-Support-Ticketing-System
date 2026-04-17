@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ClearDesk — AI-powered IT support ticketing" />
+  <title>ClearDesk — IT Support</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!--
+    Top navbar — full-width, always visible.
+    The brand lives here so the sidebar can focus entirely on the form.
+  -->
+  <nav class="navbar" aria-label="ClearDesk">
+    <div class="navbar-brand">
+      <span class="navbar-logo" aria-label="ClearDesk">Clear<span>Desk</span></span>
+      <span class="navbar-tagline">AI-Powered IT Support Dashboard</span>
+    </div>
+    <div class="navbar-end">
+      <span class="navbar-ai-pill">Powered by Gemini</span>
+    </div>
+  </nav>
+
+  <!--
+    Two-panel app layout (sits below the navbar):
+      Left  — sidebar: ticket submission form
+      Right — scrollable main: filter bar + ticket table + detail panel
+    On mobile (<768px) the sidebar stacks above the main area.
+  -->
+  <div class="layout">
+
+    <!-- ── LEFT SIDEBAR ──────────────────────────────────────────────────── -->
+    <aside class="sidebar" aria-label="Submit a ticket">
+
+      <!-- Ticket submission form -->
+      <div class="sidebar-body">
+        <h2 class="sidebar-section-title">New Ticket</h2>
+
+        <!--
+          novalidate: we handle validation ourselves for consistent dark-theme
+          styling; browser defaults conflict with the custom UI.
+          The .form--loading modifier (added by JS) dims the form during
+          the AI classification call.
+        -->
+        <form id="ticket-form" novalidate>
+
+          <div class="form-group">
+            <label for="submitter">Your Name</label>
+            <input
+              type="text"
+              id="submitter"
+              name="submitter"
+              placeholder="e.g. Jane Smith"
+              autocomplete="name"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="title">
+              Issue Title
+              <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              placeholder="Short summary of the issue"
+              required
+              aria-required="true"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="description">
+              Description
+              <span class="required" aria-hidden="true">*</span>
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              placeholder="Describe the issue — what happened, what you expected, any error messages…"
+              required
+              aria-required="true"
+            ></textarea>
+          </div>
+
+          <!--
+            The AI thinking banner is hidden by default.
+            JS adds .form--loading to the form which makes it visible via CSS.
+            Kept in DOM (not injected by JS) so the layout shift is predictable.
+          -->
+          <div class="ai-thinking" aria-live="polite" aria-atomic="true">
+            <div class="ai-thinking-bar"></div>
+            <span>Gemini is analyzing your ticket…</span>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="submit-btn">
+            Submit Ticket
+          </button>
+
+        </form>
+      </div>
+
+    </aside>
+
+    <!-- ── RIGHT MAIN ─────────────────────────────────────────────────────── -->
+    <main class="main" aria-label="Ticket list">
+
+      <!-- Thin top bar with ticket count -->
+      <div class="main-header">
+        <h1 class="main-title">All Tickets</h1>
+        <!-- Live region so screen readers announce count changes -->
+        <span id="ticket-count" aria-live="polite" aria-atomic="true">0</span>
+      </div>
+
+      <!--
+        Filter bar — three groups of pill buttons (Category / Urgency / Status).
+        Each .filter-btns container carries data-filter-type so the JS event
+        delegate can read which dimension a clicked button belongs to.
+        The initial "All" button in each group is pre-marked active.
+      -->
+      <div class="filter-bar" id="filter-bar" role="group" aria-label="Filter tickets">
+
+        <div class="filter-group">
+          <span class="filter-group-label">Category</span>
+          <div class="filter-btns" data-filter-type="category">
+            <button class="filter-btn active" data-value="">All</button>
+            <button class="filter-btn" data-value="Network">Network</button>
+            <button class="filter-btn" data-value="Hardware">Hardware</button>
+            <button class="filter-btn" data-value="Software">Software</button>
+            <button class="filter-btn" data-value="Access">Access</button>
+            <button class="filter-btn" data-value="Other">Other</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-group-label">Urgency</span>
+          <div class="filter-btns" data-filter-type="urgency">
+            <button class="filter-btn active" data-value="">All</button>
+            <button class="filter-btn" data-value="Low">Low</button>
+            <button class="filter-btn" data-value="Medium">Medium</button>
+            <button class="filter-btn" data-value="High">High</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-group-label">Status</span>
+          <div class="filter-btns" data-filter-type="status">
+            <button class="filter-btn active" data-value="">All</button>
+            <button class="filter-btn" data-value="Open">Open</button>
+            <button class="filter-btn" data-value="In Progress">In Progress</button>
+            <button class="filter-btn" data-value="Resolved">Resolved</button>
+          </div>
+        </div>
+
+      </div><!-- /#filter-bar -->
+
+      <!--
+        Ticket table — thead lives in HTML so column headers are always visible.
+        The tbody carries id="tickets-list" so app.js can still target it with
+        ticketsList.innerHTML and inject <tr> rows without any selector changes.
+      -->
+      <div class="tickets-table-wrapper">
+        <table class="tickets-table" aria-label="Ticket list">
+          <thead>
+            <tr>
+              <th scope="col">Title</th>
+              <th scope="col">Category</th>
+              <th scope="col">Urgency</th>
+              <th scope="col">Status</th>
+              <th scope="col">Created</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-list">
+            <tr>
+              <td colspan="5"><p class="empty-state">Loading tickets…</p></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--
+        Detail panel — hidden by default, JS adds .visible when a ticket
+        is selected.  aria-live causes screen readers to announce its content
+        when it appears or changes.
+      -->
+      <div
+        id="ticket-detail"
+        class="ticket-detail"
+        aria-live="polite"
+        aria-atomic="false"
+      ></div>
+
+    </main>
+
+  </div><!-- /.layout -->
+
+  <!-- Toast notification — positioned fixed, text injected by app.js -->
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
